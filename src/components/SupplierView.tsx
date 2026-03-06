@@ -76,24 +76,25 @@ const SupplierView = () => {
     }
   };
 
-  // Group requests by batchId
-  const groupedByBatch = requests.reduce<Record<string, RequestDoc[]>>((acc, req) => {
+  // Group requests by date (YYYY-MM-DD)
+  const groupedByDate = requests.reduce<Record<string, RequestDoc[]>>((acc, req) => {
     if (!req) return acc; // skip null/undefined entries
-    const batchId = req.batchId || "ungrouped";
-    if (!acc[batchId]) {
-      acc[batchId] = [];
+    const date = req.dateTime ? new Date(req.dateTime).toISOString().split('T')[0] : 'unknown';
+    if (!acc[date]) {
+      acc[date] = [];
     }
-    acc[batchId].push(req);
+    acc[date].push(req);
     return acc;
   }, {});
 
-  const batches = Object.entries(groupedByBatch).map(([batchId, items]) => ({
-    batchId,
-    requests: items,
-    dateTime: items[0]?.dateTime,
-    requestor: items[0]?.requestor,
-    productFor: items[0]?.productFor,
-  }));
+  const dailyGroups = Object.entries(groupedByDate)
+    .sort(([a], [b]) => b.localeCompare(a)) // Sort by date descending
+    .map(([date, items]) => ({
+      date,
+      requests: items,
+      totalRequests: items.length,
+      uniqueRequestors: [...new Set(items.map(r => r.requestor))],
+    }));
 
   return (
     <div className="min-h-screen bg-background py-8 px-4">
@@ -106,36 +107,35 @@ const SupplierView = () => {
 
           {loading ? (
             <div className="p-8 text-center text-muted-foreground">Loading requests...</div>
-          ) : batches.length === 0 ? (
+          ) : dailyGroups.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No requests yet.</div>
           ) : (
             <div className="divide-y divide-border">
-              {batches.map((batch) => (
-                <div key={batch.batchId}>
-                  {/* Batch Header */}
+              {dailyGroups.map((day) => (
+                <div key={day.date}>
+                  {/* Day Header */}
                   <div className="px-6 py-4 bg-muted/40 border-b border-border last:border-b-0">
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="font-semibold text-foreground mb-1">
-                          Request Batch ({batch.requests.length} product{batch.requests.length !== 1 ? 's' : ''})
+                          {day.date === 'unknown' ? 'Unknown Date' : new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
                         </h3>
                         <p className="text-xs text-muted-foreground">
-                          Submitted: {formatDate(batch.dateTime || '')} | Requestor: {batch.requestor || '—'} | For: {batch.productFor || '—'}
+                          {day.totalRequests} request{day.totalRequests !== 1 ? 's' : ''} | Requestors: {day.uniqueRequestors.join(', ')}
                         </p>
                       </div>
                       <div className="flex gap-2">
-                        <PrintableRequest requests={batch.requests} />
-                        <button
-                          onClick={() => handleDeleteBatch(batch.batchId)}
-                          className="px-3 py-1 text-xs rounded bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors font-medium"
-                        >
-                          Delete Batch
-                        </button>
+                        <PrintableRequest requests={day.requests} />
                       </div>
                     </div>
                   </div>
 
-                  {/* Batch Items Table */}
+                  {/* Daily Requests Table */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm divide-y divide-border">
                       <thead>
@@ -143,16 +143,20 @@ const SupplierView = () => {
                           <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Product</th>
                           <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Qty</th>
                           <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Unit</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Time</th>
                           <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Requestor</th>
                           <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">For</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {batch.requests.map((req) => (
+                        {day.requests
+                          .sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime()) // Sort by time descending
+                          .map((req) => (
                           <tr key={req.id} className="hover:bg-muted/30 transition-colors">
                             <td className="px-4 py-3 text-foreground font-medium">{req?.productName || "-"}</td>
                             <td className="px-4 py-3 text-foreground">{req?.quantity ?? "-"}</td>
                             <td className="px-4 py-3 text-foreground">{req?.unit || "-"}</td>
+                            <td className="px-4 py-3 text-foreground text-xs">{req?.dateTime ? new Date(req.dateTime).toLocaleTimeString() : "-"}</td>
                             <td className="px-4 py-3 text-foreground">{req?.requestor || "-"}</td>
                             <td className="px-4 py-3 text-foreground">{req?.productFor || "-"}</td>
                           </tr>
