@@ -6,10 +6,24 @@ interface Props {
   requests?: RequestDoc[];
 }
 
+const PH_LOCALE = "en-PH";
+const PH_TZ = { timeZone: "Asia/Manila" };
+
 const PrintableRequest = ({ request, requests }: Props) => {
   const printRef = useRef<HTMLDivElement>(null);
-  // Use requests array if provided, otherwise use single request
   const itemsToPrint = (requests ? requests : request ? [request] : []).filter(Boolean as any);
+
+  const isDailyPrint = requests && requests.length > 1;
+  const printDate =
+    isDailyPrint && requests[0]?.dateTime
+      ? new Date(requests[0].dateTime).toLocaleDateString(PH_LOCALE, {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          ...PH_TZ,
+        })
+      : null;
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -44,13 +58,18 @@ const PrintableRequest = ({ request, requests }: Props) => {
 
   const formatDate = (dt: string) => {
     if (!dt) return "";
-    const d = new Date(dt);
-    return d.toLocaleString();
+    return new Date(dt).toLocaleString(PH_LOCALE, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      ...PH_TZ,
+    });
   };
 
-  if (itemsToPrint.length === 0) {
-    return null;
-  }
+  if (itemsToPrint.length === 0) return null;
 
   return (
     <>
@@ -58,11 +77,20 @@ const PrintableRequest = ({ request, requests }: Props) => {
         onClick={handlePrint}
         className="px-3 py-1 text-xs rounded bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
       >
-        {itemsToPrint.length > 1 ? `Print All (${itemsToPrint.length})` : "Print"}
+        {isDailyPrint
+          ? `Print all (${itemsToPrint.length})`
+          : itemsToPrint.length > 1
+          ? `Print All (${itemsToPrint.length})`
+          : "Print"}
       </button>
 
       <div ref={printRef} style={{ display: "none" }}>
         <h2>J1 REQUEST FORM</h2>
+        {printDate && (
+          <h3 style={{ textAlign: "center", margin: "0 0 20px 0", fontSize: "16px", fontWeight: "normal" }}>
+            {printDate}
+          </h3>
+        )}
 
         <table>
           <thead>
