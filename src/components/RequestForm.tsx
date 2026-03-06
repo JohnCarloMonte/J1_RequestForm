@@ -57,11 +57,29 @@ const RequestForm = () => {
     setRequests(requests.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
   };
 
+  const parseQuantity = (quantityStr: string): number => {
+    quantityStr = quantityStr.trim();
+    if (quantityStr.includes('/')) {
+      const [numerator, denominator] = quantityStr.split('/');
+      const num = parseFloat(numerator);
+      const denom = parseFloat(denominator);
+      if (isNaN(num) || isNaN(denom) || denom === 0) {
+        throw new Error("Invalid fraction format. Use format like '1/2'.");
+      }
+      return num / denom;
+    }
+    const num = parseFloat(quantityStr);
+    if (isNaN(num)) {
+      throw new Error("Invalid quantity. Use a number or fraction like '1/2'.");
+    }
+    return num;
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      // Generate a unique batch ID for this submission
+      
       const batchId = crypto.randomUUID();
       
       const payload = requests.map((row) => {
@@ -74,7 +92,7 @@ const RequestForm = () => {
         }
         return {
           batchId,
-          quantity: Number(row.quantity),
+          quantity: parseQuantity(row.quantity),
           unit: finalUnit,
           productName: row.productName,
           requestor: row.requestor,
@@ -86,7 +104,7 @@ const RequestForm = () => {
       const { error } = await supabase.from("requests").insert(payload);
       if (error) throw error;
 
-      // Reset form to single empty row
+  
       setRequests([
         {
           id: "1",
@@ -169,12 +187,11 @@ const RequestForm = () => {
                   <div>
                     <label className="block text-sm font-semibold text-foreground mb-2">Quantity</label>
                     <input
-                      type="number"
+                      type="text"
                       value={row?.quantity || ""}
                       onChange={(e) => row && updateRow(row.id, "quantity", e.target.value)}
                       required
-                      min={1}
-                      placeholder="Amount"
+                      placeholder="Amount (e.g., 5 or 1/2)"
                       className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground/70 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition"
                     />
                   </div>
